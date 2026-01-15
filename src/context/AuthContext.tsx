@@ -7,7 +7,7 @@ interface User {
     id: string;
     email: string;
     name: string;
-    role?: string; // Optional: only for admins
+    role?: string;
     type: ActorType;
 }
 
@@ -21,23 +21,25 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<User | null>(() => {
+        const saved = localStorage.getItem('gg_user_cache');
+        return saved ? JSON.parse(saved) : null;
+    });
     const [isLoading, setIsLoading] = useState(true);
 
-    /**
-     * CY-AUTH-004: Identity Biopsy
-     * Checks if the user has an existing valid session on boot
-     */
     useEffect(() => {
         const checkIdentity = async () => {
             try {
-                // Biopsy the /me endpoint
                 const response = await api.get('/auth/me');
                 if (response.data.status === 'success') {
-                    setUser(response.data.data.user);
+                    const freshUser = response.data.data.user;
+                    setUser(freshUser);
+                    localStorage.setItem('gg_user_cache', JSON.stringify(freshUser));
                 }
             } catch (error) {
-                // If 401/Invalid, purge local substrate
+                // If 401, we simply set user to null. No hard redirect.
+                setUser(null);
+                localStorage.removeItem('gg_user_cache');
                 localStorage.removeItem('gg_access_token');
             } finally {
                 setIsLoading(false);
@@ -46,31 +48,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkIdentity();
     }, []);
 
-    /**
-     * CY-AUTH-001: Identification Protocol
-     */
     const login = async (email: string, password: string, isAdmin: boolean) => {
         const endpoint = isAdmin ? '/auth/admin/login' : '/auth/login';
         const response = await api.post(endpoint, { email, password });
         
         if (response.data.status === 'success') {
             const { accessToken, user: userData } = response.data.data;
-            
-            // Store short-lived token in local storage
+            const authUser = { ...userData, type: isAdmin ? 'admin' : 'student' };
             localStorage.setItem('gg_access_token', accessToken);
-            
-            // Inject user into global state
-            setUser({ ...userData, type: isAdmin ? 'admin' : 'student' });
+            localStorage.setItem('gg_user_cache', JSON.stringify(authUser));
+            setUser(authUser);
         }
     };
 
-    /**
-     * CY-UI-AUTH-006: Vascular Termination
-     */
     const logout = () => {
         localStorage.removeItem('gg_access_token');
+        localStorage.removeItem('gg_user_cache');
         setUser(null);
-        // Direct redirection to the Gateway
+        // Manual logout should return to root
         window.location.href = '/';
     };
 
@@ -83,8 +78,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
+    if (context === undefined) throw new Error('useAuth missing Provider');
     return context;
 };

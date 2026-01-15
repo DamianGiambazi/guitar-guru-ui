@@ -1,11 +1,17 @@
 import React from 'react';
 import { Sidebar } from '../components/Navigation/Sidebar';
 
-export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+  onNavigate: (view: string) => void;
+  currentView: string;
+}
+
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onNavigate, currentView }) => {
   return (
     <div className="flex h-screen bg-mine-shaft overflow-hidden selection:bg-hedera-purple/30">
       {/* Structural Bone: Sidebar */}
-      <Sidebar />
+      <Sidebar onNavigate={onNavigate} currentView={currentView} />
       
       {/* Content Theater */}
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
