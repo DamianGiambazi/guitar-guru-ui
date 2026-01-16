@@ -21,12 +21,21 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    // 🧬 VASCULAR RECOVERY: Initialize state from LocalStorage immediately
     const [user, setUser] = useState<User | null>(() => {
         const saved = localStorage.getItem('gg_user_cache');
-        return saved ? JSON.parse(saved) : null;
+        try {
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null;
+        }
     });
     const [isLoading, setIsLoading] = useState(true);
 
+    /**
+     * CY-AUTH-004: Identity Biopsy
+     * Verifies the cached tissue against the live Backend.
+     */
     useEffect(() => {
         const checkIdentity = async () => {
             try {
@@ -37,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     localStorage.setItem('gg_user_cache', JSON.stringify(freshUser));
                 }
             } catch (error) {
-                // If 401, we simply set user to null. No hard redirect.
+                // If API rejects, the substrate is toxic - purge it
                 setUser(null);
                 localStorage.removeItem('gg_user_cache');
                 localStorage.removeItem('gg_access_token');
@@ -55,8 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (response.data.status === 'success') {
             const { accessToken, user: userData } = response.data.data;
             const authUser = { ...userData, type: isAdmin ? 'admin' : 'student' };
+            
             localStorage.setItem('gg_access_token', accessToken);
             localStorage.setItem('gg_user_cache', JSON.stringify(authUser));
+            
             setUser(authUser);
         }
     };
@@ -65,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('gg_access_token');
         localStorage.removeItem('gg_user_cache');
         setUser(null);
-        // Manual logout should return to root
         window.location.href = '/';
     };
 
